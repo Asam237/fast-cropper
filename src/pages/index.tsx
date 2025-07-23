@@ -637,7 +637,7 @@ export default function ImageCropper() {
             Cadreur d&apos;Images
           </h1>
           <p className="text-gray-600 text-lg">
-            Uploadez, cadrez et téléchargez vos images au format JPEG.
+            Uploadez, cadrez et téléchargez vos images.
           </p>
         </div>
 
