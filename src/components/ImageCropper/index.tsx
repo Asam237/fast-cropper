@@ -407,7 +407,32 @@ export default function ImageCropper() {
       originalCropHeight
     );
 
-    const croppedDataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    let croppedDataUrl = "";
+    let quality = 0.9; // Start with a high quality
+    const maxFileSizeKB = 200;
+    const maxFileSizeB = maxFileSizeKB * 1024;
+
+    // Loop to reduce quality until file size is under 200KB
+    do {
+      croppedDataUrl = canvas.toDataURL("image/jpeg", quality);
+      // Estimate blob size from Data URL (base64 string is approx 3/4 of original size after decoding)
+      const base64Length =
+        croppedDataUrl.length - (croppedDataUrl.indexOf(",") + 1);
+      const padding =
+        croppedDataUrl.slice(-2) === "=="
+          ? 2
+          : croppedDataUrl.slice(-1) === "="
+          ? 1
+          : 0;
+      const fileSize = base64Length * 0.75 - padding; // Approximate size in bytes
+
+      if (fileSize > maxFileSizeB && quality > 0.1) {
+        // Don't go below 0.1 quality to avoid severely degraded images
+        quality -= 0.05; // Decrease quality by 5%
+      } else {
+        break; // Size is good or quality is too low
+      }
+    } while (true);
 
     setImages((prevImages) =>
       prevImages.map((img) =>
