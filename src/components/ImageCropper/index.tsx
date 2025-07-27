@@ -958,7 +958,6 @@ export default function ImageCropper() {
           </div>
         </div>
       </div>
-      {/* Toast Notification */}
       <ToastNotification
         message={toastMessage}
         isVisible={showToast}
