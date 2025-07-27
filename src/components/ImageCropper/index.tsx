@@ -77,7 +77,7 @@ export default function ImageCropper() {
     x: 0,
     y: 0,
     width: 200,
-    height: 200,
+    height: 260,
   }); // Crop area state, represents the DISPLAYED crop area
 
   // Toast notification state
@@ -467,7 +467,7 @@ export default function ImageCropper() {
           await writable.write(blob);
           await writable.close();
           showToastNotification(
-            `Image "${imageToDownload.name}" téléchargée avec succès !`
+            `Image "${imageToDownload.name}" downloaded successfully !`
           );
         } else {
           // Fallback to traditional download
@@ -896,14 +896,6 @@ export default function ImageCropper() {
             </div>
             {images.length > 0 && (
               <div className="text-center mt-6 flex flex-wrap justify-center gap-4">
-                <button
-                  onClick={downloadAllCroppedImages}
-                  className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-700 transition-all duration-300 ease-in-out shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={images.filter((img) => img.croppedSrc).length === 0}
-                >
-                  <MdDownload size={20} />
-                  Download All Cropped Images
-                </button>
                 <button
                   onClick={clearAllImages}
                   className="inline-flex items-center gap-2 px-6 py-2 bg-red-600 text-white font-semibold rounded-full hover:bg-red-700 transition-all duration-300 ease-in-out shadow-lg transform hover:scale-105"
