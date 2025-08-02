@@ -369,6 +369,53 @@ export default function ImageCropper() {
     setActiveImageId(null);
   }, []);
 
+  function getImageFileName(imgItem: any) {
+    let name = imgItem.name || "image";
+    if (!name.match(/\.(jpe?g|png|gif|webp)$/i)) {
+      name += ".jpeg";
+    }
+    return name;
+  }
+
+  // Ajoute cette fonction utilitaire dans ton composant ou dans un fichier utils
+  async function downloadAllImages(images: any[]) {
+    // Vérifie si l'API est disponible
+    if ("showDirectoryPicker" in window) {
+      try {
+        // Demande à l'utilisateur de choisir un dossier
+        const dirHandle = await (window as any).showDirectoryPicker();
+        for (const imgItem of images) {
+          const fileName = getImageFileName(imgItem);
+          const fileHandle = await dirHandle.getFileHandle(fileName, {
+            create: true,
+          });
+          const writable = await fileHandle.createWritable();
+          // Récupère le blob de l'image
+          const response = await fetch(imgItem.croppedSrc || imgItem.src);
+          const blob = await response.blob();
+          await writable.write(blob);
+          await writable.close();
+        }
+        showToastNotification(`Images downloaded successfully !`);
+      } catch (err) {
+        console.error(err);
+      }
+    } else {
+      // Fallback : téléchargement classique (dans le dossier Téléchargements)
+      images.forEach((imgItem: any) => {
+        const link = document.createElement("a");
+        link.href = imgItem.croppedSrc || imgItem.src;
+        link.download = getImageFileName(imgItem);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+      alert(
+        "Votre navigateur ne permet pas de choisir un dossier. Les images sont téléchargées dans le dossier Téléchargements."
+      );
+    }
+  }
+
   const performCrop = useCallback(() => {
     if (!activeImage || !imageRef.current || !canvasRef.current) {
       return;
@@ -896,6 +943,13 @@ export default function ImageCropper() {
             </div>
             {images.length > 0 && (
               <div className="text-center mt-6 flex flex-wrap justify-center gap-4">
+                <button
+                  onClick={() => downloadAllImages(images)}
+                  className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-700 transition-all duration-300 ease-in-out shadow-lg transform hover:scale-105"
+                >
+                  <MdDownload size={20} />
+                  Download all images
+                </button>
                 <button
                   onClick={clearAllImages}
                   className="inline-flex items-center gap-2 px-6 py-2 bg-red-600 text-white font-semibold rounded-full hover:bg-red-700 transition-all duration-300 ease-in-out shadow-lg transform hover:scale-105"
