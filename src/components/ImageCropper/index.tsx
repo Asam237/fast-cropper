@@ -10,6 +10,7 @@ import {
   MdDeleteForever,
   MdCheckCircle,
 } from "react-icons/md";
+import { FaUndoAlt, FaRedoAlt, FaSyncAlt } from "react-icons/fa";
 
 interface CropArea {
   x: number;
@@ -67,6 +68,7 @@ const ToastNotification: React.FC<{
 
 export default function ImageCropper() {
   const [images, setImages] = useState<ImageItem[]>([]);
+  const [rotation, setRotation] = useState(0);
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -421,48 +423,87 @@ export default function ImageCropper() {
       return;
     }
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
     const img = imageRef.current;
-    // Calculate scale from displayed image size to original image size
-    // Use activeImage's original dimensions for accurate scaling
+    const rotationRad = (rotation * Math.PI) / 180;
+
+    // 1. Calcul des échelles
     const scaleX = img.naturalWidth / imageSize.width;
     const scaleY = img.naturalHeight / imageSize.height;
 
-    // Use current cropArea (which is scaled to display size) to calculate original pixel crop
-    const originalCropX = cropArea.x * scaleX;
-    const originalCropY = cropArea.y * scaleY;
-    const originalCropWidth = cropArea.width * scaleX;
-    const originalCropHeight = cropArea.height * scaleY;
+    // 2. Zone de crop en pixels natifs
+    const cropX = cropArea.x * scaleX;
+    const cropY = cropArea.y * scaleY;
+    const cropW = cropArea.width * scaleX;
+    const cropH = cropArea.height * scaleY;
 
-    // Set canvas size to the original pixel size of the cropped area
-    canvas.width = originalCropWidth;
-    canvas.height = originalCropHeight;
-
-    // Draw the cropped portion from the original image dimensions
-    ctx.drawImage(
-      img,
-      originalCropX,
-      originalCropY,
-      originalCropWidth,
-      originalCropHeight,
-      0,
-      0,
-      originalCropWidth,
-      originalCropHeight
+    // 3. Canvas temporaire pour image pivotée
+    // On calcule la taille pour contenir toute l'image tournée
+    const sin = Math.abs(Math.sin(rotationRad));
+    const cos = Math.abs(Math.cos(rotationRad));
+    const rotatedW = Math.ceil(
+      img.naturalWidth * cos + img.naturalHeight * sin
+    );
+    const rotatedH = Math.ceil(
+      img.naturalWidth * sin + img.naturalHeight * cos
     );
 
+    const tmpCanvas = document.createElement("canvas");
+    tmpCanvas.width = rotatedW;
+    tmpCanvas.height = rotatedH;
+    const tmpCtx = tmpCanvas.getContext("2d");
+
+    if (!tmpCtx) {
+      return;
+    }
+
+    tmpCtx.fillStyle = "#EEEEEE";
+    tmpCtx.fillRect(0, 0, rotatedW, rotatedH);
+
+    tmpCtx.save();
+    tmpCtx.translate(rotatedW / 2, rotatedH / 2);
+    tmpCtx.rotate(rotationRad);
+    tmpCtx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+    tmpCtx.restore();
+
+    // 5. Calcul de la zone de crop dans le canvas tourné
+    // On tourne le centre du crop dans le nouveau repère
+    const centerX = img.naturalWidth / 2;
+    const centerY = img.naturalHeight / 2;
+    const dx = cropX - centerX;
+    const dy = cropY - centerY;
+    const cropRotatedX = rotatedW / 2 + dx * cos - dy * sin;
+    const cropRotatedY = rotatedH / 2 + dx * sin + dy * cos;
+
+    // 6. Canvas final pour le crop
+    const canvas = canvasRef.current;
+    canvas.width = cropW;
+    canvas.height = cropH;
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      return;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(
+      tmpCanvas,
+      cropRotatedX, // sx
+      cropRotatedY, // sy
+      cropW, // sWidth
+      cropH, // sHeight
+      0, // dx
+      0, // dy
+      cropW, // dWidth
+      cropH // dHeight
+    );
+
+    // 7. Export JPEG compressé < 200KB
     let croppedDataUrl = "";
-    let quality = 0.9; // Start with a high quality
+    let quality = 0.9;
     const maxFileSizeKB = 200;
     const maxFileSizeB = maxFileSizeKB * 1024;
-
-    // Loop to reduce quality until file size is under 200KB
     do {
       croppedDataUrl = canvas.toDataURL("image/jpeg", quality);
-      // Estimate blob size from Data URL (base64 string is approx 3/4 of original size after decoding)
       const base64Length =
         croppedDataUrl.length - (croppedDataUrl.indexOf(",") + 1);
       const padding =
@@ -471,24 +512,22 @@ export default function ImageCropper() {
           : croppedDataUrl.slice(-1) === "="
           ? 1
           : 0;
-      const fileSize = base64Length * 0.75 - padding; // Approximate size in bytes
-
+      const fileSize = base64Length * 0.75 - padding;
       if (fileSize > maxFileSizeB && quality > 0.1) {
-        // Don't go below 0.1 quality to avoid severely degraded images
-        quality -= 0.05; // Decrease quality by 5%
+        quality -= 0.05;
       } else {
-        break; // Size is good or quality is too low
+        break;
       }
     } while (true);
 
     setImages((prevImages) =>
       prevImages.map((img) =>
         img.id === activeImageId
-          ? { ...img, croppedSrc: croppedDataUrl, name: fileName } // Update name here
+          ? { ...img, croppedSrc: croppedDataUrl, name: fileName }
           : img
       )
     );
-  }, [activeImage, activeImageId, imageSize, cropArea, fileName]);
+  }, [activeImage, activeImageId, imageSize, cropArea, fileName, rotation]);
 
   const downloadImageFile = useCallback(
     async (imageToDownload: ImageItem) => {
@@ -749,6 +788,63 @@ export default function ImageCropper() {
           ) : (
             <div className="space-y-8">
               {/* Image with crop overlay */}
+
+              <div className="flex items-center gap-3 mb-3">
+                {/* Bouton rotation gauche */}
+                <button
+                  type="button"
+                  onClick={() => setRotation(rotation - 15)}
+                  aria-label="Tourner à gauche"
+                  className="p-1 rounded hover:bg-blue-100 transition"
+                >
+                  <FaUndoAlt className="w-5 h-5 text-blue-600" />
+                </button>
+
+                {/* Slider stylisé */}
+                <div className="flex flex-col items-center flex-1">
+                  <input
+                    id="rotation-slider"
+                    type="range"
+                    min={-180}
+                    max={180}
+                    step={1}
+                    value={rotation}
+                    onChange={(e) => setRotation(Number(e.target.value))}
+                    className="w-full accent-blue-600 h-2 rounded-lg outline-none transition-all"
+                  />
+                  <div className="flex items-center justify-between w-full mt-1 text-xs text-gray-400">
+                    <span>-180°</span>
+                    <span>0°</span>
+                    <span>+180°</span>
+                  </div>
+                </div>
+
+                {/* Bouton rotation droite */}
+                <button
+                  type="button"
+                  onClick={() => setRotation(rotation + 15)}
+                  aria-label="Tourner à droite"
+                  className="p-1 rounded hover:bg-blue-100 transition"
+                >
+                  <FaRedoAlt className="w-5 h-5 text-blue-600" />
+                </button>
+
+                {/* Bouton reset */}
+                <button
+                  type="button"
+                  onClick={() => setRotation(0)}
+                  aria-label="Réinitialiser"
+                  className="ml-2 p-1 rounded hover:bg-blue-100 transition"
+                >
+                  <FaSyncAlt className="w-5 h-5 text-gray-500" />
+                </button>
+
+                {/* Affichage de l’angle */}
+                <span className="ml-2 font-mono text-base w-12 text-center text-blue-700">
+                  {rotation}°
+                </span>
+              </div>
+
               <div
                 ref={containerRef}
                 className="relative mx-auto bg-gray-100 rounded-lg overflow-hidden border border-gray-200"
@@ -768,6 +864,11 @@ export default function ImageCropper() {
                   alt="Image à cadrer"
                   className="w-full h-full object-contain"
                   draggable={false}
+                  style={{
+                    transform: `rotate(${rotation}deg)`,
+                    transition: "transform 0.2s",
+                    pointerEvents: "none",
+                  }}
                 />
 
                 {/* Crop overlay */}
@@ -824,26 +925,6 @@ export default function ImageCropper() {
                   <MdCrop size={18} />
                   Crop Image{" "}
                 </button>
-
-                <button
-                  onClick={() => downloadImageFile(activeImage)}
-                  className="flex items-center justify-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-300 ease-in-out shadow-md transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Télécharger l'image cadrée"
-                  disabled={!activeImage?.croppedSrc}
-                >
-                  <MdDownload size={18} />
-                  Download JPEG
-                </button>
-
-                <label
-                  htmlFor="imageInput"
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-300 ease-in-out cursor-pointer shadow-md transform hover:scale-105"
-                  title="Télécharger une nouvelle image"
-                >
-                  <MdUpload size={18} />
-                  Add Image(s)
-                </label>
-
                 <button
                   onClick={clearActiveImage}
                   className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-300 ease-in-out shadow-md transform hover:scale-105"
