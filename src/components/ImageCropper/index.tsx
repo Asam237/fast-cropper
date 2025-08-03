@@ -487,14 +487,14 @@ export default function ImageCropper() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(
       tmpCanvas,
-      cropRotatedX, // sx
-      cropRotatedY, // sy
-      cropW, // sWidth
-      cropH, // sHeight
-      0, // dx
-      0, // dy
-      cropW, // dWidth
-      cropH // dHeight
+      cropRotatedX,
+      cropRotatedY,
+      cropW,
+      cropH,
+      0,
+      0,
+      cropW,
+      cropH
     );
 
     // 7. Export JPEG compressé < 200KB
