@@ -497,7 +497,7 @@ export default function ImageCropper() {
       cropH
     );
 
-    // 7. Export JPEG compressé < 200KB
+    //Export JPEG compressé < 200KB
     let croppedDataUrl = "";
     let quality = 0.9;
     const maxFileSizeKB = 200;
